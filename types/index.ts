@@ -4,6 +4,10 @@ export interface Message {
   content: string
   timestamp: number
   thinking?: string
+  // 消息标记
+  enableSearch?: boolean   // 是否启用联网搜索
+  enableThinking?: boolean // 是否启用深度思考
+  hasFiles?: boolean       // 是否包含文件
 }
 
 export interface ChatSession {

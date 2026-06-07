@@ -84,6 +84,8 @@ export async function* chatStream(
   const decoder = new TextDecoder()
   let buffer = ''
   let eventCount = 0
+  let lastTextLength = 0
+  let lastThoughtLength = 0
   
   try {
     while (true) {
@@ -125,24 +127,102 @@ export async function* chatStream(
                 throw new Error(parsed.error)
               }
               
+              // 格式1: 百炼标准格式 output.text / output.reasoningContent
               if (parsed.output) {
-                if (parsed.output.thoughts && parsed.output.thoughts.length > 0) {
-                  const lastThought = parsed.output.thoughts[parsed.output.thoughts.length - 1]
-                  if (lastThought.thought) {
-                    console.log('[API] 收到思考内容')
-                    yield { type: 'thinking', data: lastThought.thought }
+                console.log('[API] output字段:', JSON.stringify(parsed.output, null, 2))
+                
+                // 处理思考内容
+                if (parsed.output.reasoningContent) {
+                  const currentReasoning = parsed.output.reasoningContent
+                  if (lastThoughtLength === 0) {
+                    lastThoughtLength = currentReasoning.length
+                    console.log('[API] 收到思考内容（首次），长度:', currentReasoning.length)
+                    yield { type: 'thinking', data: currentReasoning }
+                  } else if (currentReasoning.length > lastThoughtLength) {
+                    const delta = currentReasoning.slice(lastThoughtLength)
+                    lastThoughtLength = currentReasoning.length
+                    console.log('[API] 收到思考内容（累积）增量，长度:', delta.length)
+                    yield { type: 'thinking', data: delta }
+                  } else {
+                    console.log('[API] 收到思考内容（增量），长度:', currentReasoning.length)
+                    yield { type: 'thinking', data: currentReasoning }
                   }
                 }
+                
+                // 处理文本内容
                 if (parsed.output.text) {
-                  console.log('[API] 收到文本内容，长度:', parsed.output.text.length)
-                  yield { type: 'content', data: parsed.output.text }
+                  const currentText = parsed.output.text
+                  if (lastTextLength === 0) {
+                    lastTextLength = currentText.length
+                    console.log('[API] 收到文本内容（首次），长度:', currentText.length)
+                    yield { type: 'content', data: currentText }
+                  } else if (currentText.length > lastTextLength) {
+                    const delta = currentText.slice(lastTextLength)
+                    lastTextLength = currentText.length
+                    console.log('[API] 收到文本内容（累积）增量，长度:', delta.length)
+                    yield { type: 'content', data: delta }
+                  } else {
+                    console.log('[API] 收到文本内容（增量），长度:', currentText.length)
+                    yield { type: 'content', data: currentText }
+                  }
                 }
+                
                 if (parsed.output.finish_reason && parsed.output.finish_reason !== 'null') {
                   console.log('[API] 收到结束原因:', parsed.output.finish_reason)
                   yield { type: 'done', data: '' }
                   return
                 }
               }
+              
+              // 格式2: OpenAI 兼容格式 choices[].delta
+              else if (parsed.choices && parsed.choices.length > 0) {
+                const delta = parsed.choices[0].delta
+                console.log('[API] delta字段:', JSON.stringify(delta, null, 2))
+                
+                // 处理思考内容 (reasoning_content)
+                if (delta.reasoning_content) {
+                  const currentReasoning = delta.reasoning_content
+                  if (lastThoughtLength === 0) {
+                    lastThoughtLength = currentReasoning.length
+                    console.log('[API] 收到思考内容(delta)（首次），长度:', currentReasoning.length)
+                    yield { type: 'thinking', data: currentReasoning }
+                  } else if (currentReasoning.length > lastThoughtLength) {
+                    const deltaContent = currentReasoning.slice(lastThoughtLength)
+                    lastThoughtLength = currentReasoning.length
+                    console.log('[API] 收到思考内容(delta)（累积）增量，长度:', deltaContent.length)
+                    yield { type: 'thinking', data: deltaContent }
+                  } else {
+                    console.log('[API] 收到思考内容(delta)（增量），长度:', currentReasoning.length)
+                    yield { type: 'thinking', data: currentReasoning }
+                  }
+                }
+                
+                // 处理文本内容 (content)
+                if (delta.content) {
+                  const currentText = delta.content
+                  if (lastTextLength === 0) {
+                    lastTextLength = currentText.length
+                    console.log('[API] 收到文本内容(delta)（首次），长度:', currentText.length)
+                    yield { type: 'content', data: currentText }
+                  } else if (currentText.length > lastTextLength) {
+                    const deltaContent = currentText.slice(lastTextLength)
+                    lastTextLength = currentText.length
+                    console.log('[API] 收到文本内容(delta)（累积）增量，长度:', deltaContent.length)
+                    yield { type: 'content', data: deltaContent }
+                  } else {
+                    console.log('[API] 收到文本内容(delta)（增量），长度:', currentText.length)
+                    yield { type: 'content', data: currentText }
+                  }
+                }
+                
+                if (parsed.choices[0].finish_reason && parsed.choices[0].finish_reason !== 'null') {
+                  console.log('[API] 收到结束原因:', parsed.choices[0].finish_reason)
+                  yield { type: 'done', data: '' }
+                  return
+                }
+              }
+              
+              // 格式3: 直接字段
               else if (parsed.thinking !== undefined) {
                 console.log('[API] 收到thinking字段')
                 yield { type: 'thinking', data: parsed.thinking }

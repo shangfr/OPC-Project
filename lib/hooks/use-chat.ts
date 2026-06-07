@@ -38,12 +38,15 @@ export function useChat(
       sessionId = session.id;
     }
 
-    // 添加用户消息
+    // 添加用户消息（记录标记状态）
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      enableSearch,
+      enableThinking,
+      hasFiles: files && files.length > 0
     };
 
     setMessages(prev => [...prev, userMessage]);

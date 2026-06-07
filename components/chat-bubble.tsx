@@ -4,7 +4,7 @@ import { Message } from '@/types'
 import { MarkdownRenderer } from './markdown-renderer'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { User, Bot, Copy, Check } from 'lucide-react'
+import { User, Bot, Copy, Check, Globe, Brain, Paperclip } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -19,18 +19,14 @@ interface ChatBubbleProps {
 }
 
 export function ChatBubble({ message, isStreaming, username, expertIcon, expertColor }: ChatBubbleProps) {
-  const [showThinking, setShowThinking] = useState(false) // 默认隐藏
+  const [showThinking, setShowThinking] = useState(true) // 默认显示思考过程
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   
-  // 流式输出结束后自动隐藏思考过程
+  // 流式输出时自动展开思考过程
   useEffect(() => {
-    if (!isStreaming && message.thinking) {
-      // 延迟 500ms 后折叠，让用户看到思考完成
-      const timer = setTimeout(() => {
-        setShowThinking(false)
-      }, 500)
-      return () => clearTimeout(timer)
+    if (isStreaming && message.thinking) {
+      setShowThinking(true)
     }
   }, [isStreaming, message.thinking])
   
@@ -73,7 +69,7 @@ export function ChatBubble({ message, isStreaming, username, expertIcon, expertC
       {/* 消息内容 */}
       <div className={cn('flex flex-col max-w-[85%] md:max-w-[80%]', isUser ? 'items-end' : 'items-start')}>
         {/* 思考过程 */}
-        {message.thinking && !isUser && (
+        {message.thinking !== undefined && message.thinking !== null && !isUser && (
           <div className="mb-2 w-full">
             <button
               onClick={() => setShowThinking(!showThinking)}
@@ -101,7 +97,7 @@ export function ChatBubble({ message, isStreaming, username, expertIcon, expertC
               ) : showThinking ? '隐藏思考过程' : '显示思考过程'}
             </button>
             
-            {showThinking && (
+            {showThinking && message.thinking && (
               <div className="mt-2 p-3 bg-muted/50 rounded-lg border border-border text-sm text-muted-foreground min-h-[32px]">
                 <MarkdownRenderer content={message.thinking} />
                 {/* 思考中的光标 */}
@@ -148,9 +144,34 @@ export function ChatBubble({ message, isStreaming, username, expertIcon, expertC
           )}
         </div>
         
-        {/* 时间戳 */}
-        <div className="mt-1 px-1 text-xs text-muted-foreground">
-          {formatTime(message.timestamp)}
+        {/* 时间戳和标记 */}
+        <div className="mt-1 px-1 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {formatTime(message.timestamp)}
+          </span>
+          {/* 消息标记 */}
+          {isUser && (
+            <div className="flex items-center gap-1">
+              {message.enableSearch && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-blue-50 text-blue-600 border border-blue-100" title="联网搜索">
+                  <Globe size={10} />
+                  联网
+                </span>
+              )}
+              {message.enableThinking && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-purple-50 text-purple-600 border border-purple-100" title="深度思考">
+                  <Brain size={10} />
+                  思考
+                </span>
+              )}
+              {message.hasFiles && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-orange-50 text-orange-600 border border-orange-100" title="包含文件">
+                  <Paperclip size={10} />
+                  文件
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

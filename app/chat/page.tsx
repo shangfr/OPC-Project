@@ -294,6 +294,8 @@ export default function ChatPage() {
       
       let thinkingContent = ''
       let contentText = ''
+      let lastThinkingLength = 0
+      let lastContentLength = 0
       
       // 使用 requestAnimationFrame 优化更新频率（60fps）
       let rafId: number | null = null
@@ -318,8 +320,10 @@ export default function ChatPage() {
       try {
         for await (const chunk of stream) {
           if (chunk.type === 'thinking') {
+            // API 返回的是增量内容，直接追加
             thinkingContent += chunk.data
           } else if (chunk.type === 'content') {
+            // API 返回的是增量内容，直接追加
             contentText += chunk.data
           }
           
@@ -355,8 +359,8 @@ export default function ChatPage() {
           msg.id === assistantMessageId
             ? { 
                 ...msg, 
-                // 如果关闭了思考，不保存 thinking 内容
-                thinking: enableThinking ? thinkingContent : undefined,
+                // 如果关闭了思考或思考内容为空，不保存 thinking 内容
+                thinking: (enableThinking && thinkingContent.trim()) ? thinkingContent : undefined,
                 content: contentText 
               }
             : msg
@@ -372,7 +376,7 @@ export default function ChatPage() {
           msg.id === assistantMessageId
             ? { 
                 ...msg, 
-                thinking: enableThinking ? thinkingContent : undefined,
+                thinking: (enableThinking && thinkingContent.trim()) ? thinkingContent : undefined,
                 content: contentText 
               }
             : msg
@@ -427,13 +431,20 @@ export default function ChatPage() {
   }
   
   const confirmClear = () => {
-    // 删除当前专家的所有会话
+    // 删除当前专家的所有会话（使用函数式更新避免闭包陷阱）
     if (selectedExpert) {
-      const updatedSessions = sessions.filter((s: ChatSession) => s.expert !== selectedExpert)
-      setSessions(updatedSessions)
-      localStorage.setItem('chat-sessions', JSON.stringify(updatedSessions))
+      setSessions(prev => {
+        const updatedSessions = prev.filter((s: ChatSession) => s.expert !== selectedExpert)
+        localStorage.setItem('chat-sessions', JSON.stringify(updatedSessions))
+        return updatedSessions
+      })
     }
-    
+
+    // 清空当前专家选择状态
+    setSelectedExpert(null)
+    setExpertConfig(null)
+    localStorage.removeItem('selected-expert')
+
     setMessages([])
     setCurrentSessionId(null)
     setStreamingMessageId(null)

@@ -51,12 +51,14 @@ export function useSession() {
 
   // 清空当前专家的所有会话
   const clearExpertSessions = useCallback((expertName: string) => {
-    const updatedSessions = sessions.filter((s: ChatSession) => s.expert !== expertName);
-    setSessions(updatedSessions);
-    localStorage.setItem('chat-sessions', JSON.stringify(updatedSessions));
+    setSessions(prev => {
+      const updatedSessions = prev.filter((s: ChatSession) => s.expert !== expertName);
+      localStorage.setItem('chat-sessions', JSON.stringify(updatedSessions));
+      return updatedSessions;
+    });
     setCurrentSessionId(null);
     toast.success('对话已清空');
-  }, [sessions]);
+  }, []);
 
   // 选择会话
   const selectSession = useCallback((session: ChatSession) => {
